@@ -3,7 +3,8 @@
 //
 //   visitor -> CloudFront (hameats.app, HTTPS) -> Lambda function URL -> this handler -> Next.js on 127.0.0.1
 //
-// It also runs the daily alerts (every 15 minutes) when EventBridge Scheduler invokes the function with { "hameats": "alerts" }.
+// It also runs the daily alerts (every 15 minutes) when EventBridge Scheduler invokes the function with
+// { "hameats": "alerts" }, and the menu refresh with { "hameats": "refresh-menus" } (see refreshMenus below).
 // The package is made by scripts/package-lambda.sh; infra/aws/hameats.yaml sets everything up.
 
 import http from "node:http";
@@ -68,6 +69,45 @@ function forward({ method, path, headers, body }) {
   });
 }
 
+// How long CloudFront keeps the home page (one copy for everyone; it has nothing personal in it). Long enough to last
+// from the evening's last menu refresh to the next morning's: the refreshes clear it sooner (refreshMenus).
+const HOME_EDGE_SECONDS = 24 * 3600;
+
+/**
+ * The scheduled menu refresh: fetch the menus (app/api/cron/refresh-menus) and, only if dishes came back, clear
+ * CloudFront's copy of the home page, so the next visitor gets a page made with the new menus. If the menu API is down
+ * the old page stays up. Clearing "/" also clears the in-app (RSC) versions of it.
+ */
+async function refreshMenus() {
+  const res = await forward({
+    method: "GET",
+    path: "/api/cron/refresh-menus",
+    headers: { host: "localhost", authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+  });
+  let items = 0;
+  try {
+    items = JSON.parse(res.body.toString("utf8")).items ?? 0;
+  } catch {}
+  const distributionId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+  if (res.status !== 200 || items <= 0) {
+    console.error("menu refresh: no menus (status", res.status, "), keeping the current page:", res.body.toString("utf8"));
+    return { refreshed: false, status: res.status, items };
+  }
+  if (!distributionId) {
+    console.error("menu refresh: CLOUDFRONT_DISTRIBUTION_ID isn't set, so the page can't be cleared");
+    return { refreshed: false, items };
+  }
+  const { CloudFrontClient, CreateInvalidationCommand } = await import("@aws-sdk/client-cloudfront");
+  const out = await new CloudFrontClient({}).send(
+    new CreateInvalidationCommand({
+      DistributionId: distributionId,
+      InvalidationBatch: { CallerReference: `menu-refresh-${Date.now()}`, Paths: { Quantity: 1, Items: ["/"] } },
+    }),
+  );
+  console.log("menu refresh:", items, "dishes; cleared the home page:", out.Invalidation?.Id);
+  return { refreshed: true, items, invalidation: out.Invalidation?.Id };
+}
+
 const text = (statusCode, message) => ({ statusCode, headers: { "content-type": "text/plain; charset=utf-8" }, body: message });
 
 export async function handler(event) {
@@ -84,6 +124,8 @@ export async function handler(event) {
     console.log("alerts:", res.status, result);
     return { status: res.status, result };
   }
+
+  if (event?.hameats === "refresh-menus") return refreshMenus();
 
   // A web request through the function URL. Only CloudFront knows ORIGIN_VERIFY, so the function URL itself can't be
   // used to get around it (or to pass a made-up x-forwarded-host).
@@ -116,5 +158,11 @@ export async function handler(event) {
     if (k === "set-cookie") cookies = Array.isArray(v) ? v : [v];
     else out[k] = Array.isArray(v) ? v.join(", ") : String(v);
   }
+  // The home page: CloudFront may keep it (until the next menu refresh clears it); browsers re-check it every time.
+  // Never when the answer sets a cookie, as that would be someone's own.
+  const isHome = event.rawPath === "/" && (http_.method === "GET" || http_.method === "HEAD");
+  if (isHome && res.status === 200 && !cookies.length)
+    out["cache-control"] = `public, max-age=0, s-maxage=${HOME_EDGE_SECONDS}`;
+
   return { statusCode: res.status, headers: out, cookies, body: res.body.toString("base64"), isBase64Encoded: true };
 }

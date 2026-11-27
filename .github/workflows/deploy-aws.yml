@@ -56,12 +56,13 @@ jobs:
           aws lambda update-function-code --function-name hameats --zip-file fileb://hameats-lambda.zip --query CodeSize
           aws lambda wait function-updated --function-name hameats
 
-      # CloudFront keeps About/Privacy/Terms and the icons for up to an hour; clear them so the new version shows now.
+      # CloudFront keeps the home page until the next menu refresh, and About/Privacy/Terms and the icons for up to an
+      # hour; clear them so the new version shows now (the old home page points at the old build's files).
       - name: Clear cached shared pages
         if: vars.CLOUDFRONT_DISTRIBUTION_ID != ''
         run: |
           aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
-            --paths /about /privacy /terms /icon.png /apple-icon.png /favicon.ico /manifest.webmanifest '/icons/*' \
+            --paths / /about /privacy /terms /icon.png /apple-icon.png /favicon.ico /manifest.webmanifest '/icons/*' \
             --query Invalidation.Id --output text
 
       - name: Check the live site is on this version

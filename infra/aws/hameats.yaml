@@ -173,7 +173,7 @@ Resources:
 
   # ---- CloudFront: HTTPS, the hameats.app addresses, and caching of the static files. Most pages aren't cached here:
   # they come from the function each time (Next.js caches them itself). The exceptions are the pages and icons that are
-  # the same for everyone (SharedPagePaths below): caching those keeps a single page load from starting ~16 copies of
+  # the same for everyone (SharedPagePaths below) and the home page (HomePageCachePolicy): caching those keeps a single page load from starting ~16 copies of
   # the function at once, which ran into the account's concurrency limit. The deploy workflow clears them after each
   # deploy, so a new version shows up straight away.
 
@@ -189,6 +189,27 @@ Resources:
         MinTTL: 0
         DefaultTTL: 0
         MaxTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [RSC, Next-Router-Prefetch, Next-Router-State-Tree, Next-Router-Segment-Prefetch]
+
+  # The home page: the same for everyone (menus only; sign-in and favorites load afterwards in the browser). The Lambda
+  # handler marks it s-maxage=86400 and the scheduled menu refreshes (MenuRefreshHourly/Quarters) clear it, so it's made
+  # about 17 times a day instead of on every visit. MinTTL 0: an answer marked no-store (e.g. an error) isn't kept.
+  HomePageCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: hameats-home-page
+        Comment: The HamEats home page, kept until the next scheduled menu refresh.
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 86400
         ParametersInCacheKeyAndForwardedToOrigin:
           EnableAcceptEncodingGzip: true
           EnableAcceptEncodingBrotli: true
@@ -272,6 +293,16 @@ Resources:
             ViewerProtocolPolicy: redirect-to-https
             Compress: true
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+          # The home page only (not /api, /hours...): see HomePageCachePolicy.
+          - PathPattern: /
+            TargetOriginId: app
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: !Ref HomePageCachePolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardedHost.FunctionMetadata.FunctionARN
           # Pages and icons that are the same for everyone (see SharedPagesCachePolicy / IconsCachePolicy).
           - PathPattern: /about
             TargetOriginId: app
@@ -385,6 +416,64 @@ Resources:
         Input: '{"hameats":"alerts"}'
         RetryPolicy:
           MaximumRetryAttempts: 2
+
+  # ---- Menu refresh: at these campus times the function fetches the menus and, if dishes came back, clears CloudFront's
+  # copy of the home page (web/lambda/index.mjs refreshMenus). Between them every visitor gets the same stored page.
+  # 9:00-7:00 on the hour, plus 10:15/10:30/10:45 and 4:15/4:30/4:45. About 17 invalidations a day, inside the free
+  # 1,000 paths a month along with the deploys'.
+  MenuRefreshHourly:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: hameats-menu-refresh-hourly
+      Description: Refresh the home page menus on the hour, 9 AM to 7 PM campus time.
+      ScheduleExpression: cron(0 9-19 * * ? *)
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt App.Arn
+        RoleArn: !GetAtt AlertsSchedulerRole.Arn
+        Input: '{"hameats":"refresh-menus"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 1
+
+  MenuRefreshQuarters:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: hameats-menu-refresh-quarters
+      Description: Refresh the home page menus at 10:15, 10:30, 10:45, 4:15, 4:30 and 4:45 campus time.
+      ScheduleExpression: cron(15,30,45 10,16 * * ? *)
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt App.Arn
+        RoleArn: !GetAtt AlertsSchedulerRole.Arn
+        Input: '{"hameats":"refresh-menus"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 1
+
+  # The function clears the home page itself after a refresh. A separate policy (and the distribution ID in Parameter
+  # Store, read when the function starts) avoids a loop: the distribution already depends on the function.
+  AppInvalidatePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: hameats-clear-home-page
+      Roles: [!Ref AppRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: cloudfront:CreateInvalidation
+            Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  DistributionIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /hameats/CLOUDFRONT_DISTRIBUTION_ID
+      Type: String
+      Value: !Ref Distribution
+      Description: Read by the HamEats function at start-up, for the menu refresh.
 
   # ---- GitHub Actions (.github/workflows/deploy-aws.yml) signs in with this role, from main only, to replace the code.
   GitHubOidcProvider:

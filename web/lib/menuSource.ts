@@ -36,38 +36,6 @@ async function getJson<T>(url: string, revalidate: number): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Meal times on campus, as minutes after midnight: breakfast, lunch, dinner. */
-const MEAL_WINDOWS: [number, number][] = [
-  [7 * 60, 10 * 60 + 30],
-  [11 * 60, 14 * 60],
-  [16 * 60 + 30, 20 * 60 + 30],
-];
-const HOUR = 3600;
-const MIN_CACHE_SECONDS = 15 * 60;
-
-/**
- * How long a menu response may be reused. During a meal it's one hour, so a change the kitchen makes shows up
- * within the hour. Between meals nothing is re-fetched until the next meal begins (at least 15 minutes, so a
- * request just before a meal still gets a short cache), which roughly halves the day's menu requests.
- */
-export function menuCacheSeconds(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: TIME_ZONE,
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  const secondsIntoDay = get("hour") * HOUR + get("minute") * 60 + get("second");
-
-  if (MEAL_WINDOWS.some(([start, end]) => secondsIntoDay >= start * 60 && secondsIntoDay < end * 60)) return HOUR;
-
-  const nextStart = MEAL_WINDOWS.map(([start]) => start * 60).find((start) => start > secondsIntoDay);
-  const wait = (nextStart ?? MEAL_WINDOWS[0][0] * 60 + 24 * HOUR) - secondsIntoDay;
-  return Math.max(MIN_CACHE_SECONDS, wait);
-}
-
 /** "YYYY-MM-DD" for today on campus, regardless of the server's time zone. */
 function hamiltonToday() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date());
