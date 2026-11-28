@@ -56,7 +56,7 @@ const DROP = new Set(["x-origin-verify", "connection", "keep-alive", "transfer-e
 /** Sends one request to Next.js and collects the whole answer, bytes untouched (already compressed if it is). */
 function forward({ method, path, headers, body }) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port: PORT, method, path, headers }, (res) => {
+    const req = http.request({ host: "127.0.0.1", port: PORT, method, path, headers, agent: false }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => resolve({ status: res.statusCode ?? 502, headers: res.headers, body: Buffer.concat(chunks) }));
