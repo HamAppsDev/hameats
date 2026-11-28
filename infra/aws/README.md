@@ -24,7 +24,7 @@ GitHub Actions, every push to main ─▶ builds web/ ─▶ replaces the functi
 | DynamoDB | Favorites and notification settings | 25 GB, 25 reads/s and 25 writes/s (provisioned) | 5/5, a few KB |
 | Parameter Store | Secrets (standard parameters) | free | 8 settings |
 | EventBridge Scheduler | The daily alerts, run every 15 minutes | 14M a month | about 2,900 a month |
-| SES | Alert emails, from alerts@hamapps.dev | none: $0.10 per 1,000 emails | a few cents a month at most |
+| SES | Alert emails, from notifications@hameats.app (stack parameter EmailAlerts turns them on) | none: $0.10 per 1,000 emails | a few cents a month at most |
 | CloudWatch Logs | The app's logs, kept 14 days | 5 GB a month | small |
 
 Things the setup avoids because they cost money: a load balancer, Route 53 hosted zones ($0.50/month), Secrets

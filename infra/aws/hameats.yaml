@@ -42,10 +42,17 @@ Parameters:
       `gh api repos/OWNER/NAME/actions/oidc/customization/sub`). Accepted along with the plain owner/name form.
   AlertEmailFrom:
     Type: String
-    Default: alerts@hamapps.dev
+    Default: notifications@hameats.app
     Description: >-
       The address alert emails come from (lib/email.ts). Its domain must be a verified SES identity in this Region;
       the app may send only from this address.
+  EmailAlerts:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: >-
+      Offer alert emails. Leave false until SES shows AlertEmailFrom's domain as verified: while false the app hides
+      the Email switch and sends no email.
   CreateGitHubOidcProvider:
     Type: String
     AllowedValues: ["true", "false"]
@@ -56,6 +63,7 @@ Conditions:
   WithTable: !Equals [!Ref CreateTable, "true"]
   WithDomain: !Not [!Equals [!Ref CertificateArn, ""]]
   WithOidcProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+  WithEmailAlerts: !Equals [!Ref EmailAlerts, "true"]
 
 Resources:
   # ---- Data: one item per person (lib/users.ts). 5 reads and 5 writes a second is far more than HamEats needs and
@@ -141,7 +149,7 @@ Resources:
           SSM_PREFIX: /hameats
           HAMEATS_DYNAMODB_TABLE: !Ref TableName
           NEXT_PUBLIC_VAPID_PUBLIC_KEY: !Ref VapidPublicKey
-          HAMEATS_EMAIL_FROM: !Sub HamEats <${AlertEmailFrom}>
+          HAMEATS_EMAIL_FROM: !If [WithEmailAlerts, !Sub "HamEats <${AlertEmailFrom}>", !Ref AWS::NoValue]
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
       Code:
