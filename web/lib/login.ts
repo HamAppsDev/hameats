@@ -10,3 +10,6 @@ export const signInWithGoogle = () => void window.dispatchEvent(new Event(LOGIN_
 
 /** Goes to Google's login, from the Continue button on that screen. */
 export const continueWithGoogle = () => signIn("google", { callbackUrl: window.location.href });
+
+/** Local test mode only (lib/localMode.ts): signs in as the made-up test student, no Google. */
+export const continueAsTestStudent = () => signIn("local", { callbackUrl: window.location.href });

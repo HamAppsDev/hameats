@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LOGIN_REQUESTED, continueWithGoogle } from "@/lib/login";
+import { LOGIN_REQUESTED, continueAsTestStudent, continueWithGoogle } from "@/lib/login";
+import { useMe } from "@/lib/me";
 import { track } from "@/lib/analytics";
 
 const link = "font-semibold text-accent underline";
@@ -17,6 +18,7 @@ function dropPending() {
 export function LoginSheet() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { localMode } = useMe();
 
   useEffect(() => {
     const onRequest = () => {
@@ -44,7 +46,7 @@ export function LoginSheet() {
   const go = () => {
     setBusy(true);
     track("login_continue");
-    void continueWithGoogle();
+    void (localMode ? continueAsTestStudent() : continueWithGoogle());
   };
 
   return (
@@ -60,6 +62,12 @@ export function LoginSheet() {
           Log in with your Hamilton account
         </h2>
         <p className="mt-1 text-[15px]">Save your favorite dishes and get an alert the morning one is on the menu.</p>
+        {localMode && (
+          <p className="mt-3 rounded-lg border border-gold bg-gold/15 px-3 py-2 text-[14px] leading-snug text-zinc-900 dark:text-zinc-100">
+            <strong>Local test mode.</strong> You&apos;ll log in as a made-up test student, without Google. Favorites and
+            settings are only kept until the dev server restarts.
+          </p>
+        )}
 
         <ul className="mt-4 space-y-2.5 text-[15px] leading-snug">
           <li className="flex gap-2.5">
@@ -92,7 +100,7 @@ export function LoginSheet() {
           autoFocus
           className="mt-6 min-h-12 w-full rounded-full bg-accent-fill px-5 text-base font-semibold text-on-accent disabled:opacity-60"
         >
-          {busy ? "Opening Google…" : "Continue with Google"}
+          {localMode ? (busy ? "Logging in…" : "Continue as test student") : busy ? "Opening Google…" : "Continue with Google"}
         </button>
         <button
           type="button"

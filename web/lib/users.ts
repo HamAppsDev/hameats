@@ -1,6 +1,7 @@
 import "server-only";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { localMode } from "@/lib/localMode";
 
 // Everything HamEats saves lives in one DynamoDB table, one item per person who has logged in:
 //
@@ -46,8 +47,17 @@ const env = (name: string) => process.env[name]?.trim() || "";
 
 const region = () => env("HAMEATS_AWS_REGION") || env("AWS_REGION");
 
-/** Whether the table is set up. Without it, favorites and notifications are switched off and the app runs as before. */
-export const storeEnabled = () => !!(region() && env("HAMEATS_DYNAMODB_TABLE"));
+/**
+ * Whether favorites and notifications work: the table is set up, or local test mode keeps everyone in memory instead
+ * (lib/localMode.ts). Otherwise they're switched off and the rest of the app runs as before.
+ */
+export const storeEnabled = () => !!(region() && env("HAMEATS_DYNAMODB_TABLE")) || localMode();
+
+/**
+ * Local test mode's stand-in for the table: one item per email, kept in the dev server's memory (on globalThis, so it
+ * survives hot reloads) and gone when the server restarts.
+ */
+const memory = () => ((globalThis as { hameatsLocalUsers?: Map<string, Record<string, unknown>> }).hameatsLocalUsers ??= new Map());
 
 let client: DynamoDBDocumentClient | undefined;
 const db = () =>
@@ -78,6 +88,10 @@ const toUser = (email: string, item: Record<string, unknown> | undefined): User 
 
 /** The person's record, created the first time they're seen. */
 export async function getUser(email: string): Promise<User> {
+  if (localMode()) {
+    if (!memory().has(email)) memory().set(email, { email, createdAt: new Date().toISOString(), favorites: [], notify: false, push: [] });
+    return toUser(email, memory().get(email));
+  }
   const { Item } = await db().send(new GetCommand({ TableName: table(), Key: { email }, ConsistentRead: true }));
   if (Item) return toUser(email, Item);
   // First visit: create it, unless another request just did.
@@ -98,6 +112,14 @@ export async function getUser(email: string): Promise<User> {
  * (two phones tapping at once), trying again if they did. `change` returns the fields to save, or null to save nothing.
  */
 async function update(email: string, change: (u: User) => Partial<Omit<User, "email" | "createdAt" | "lastAlert">> | null): Promise<User> {
+  if (localMode()) {
+    const user = toUser(email, memory().get(email));
+    const fields = change(user);
+    if (!fields) return user;
+    const next = { ...user, ...fields };
+    memory().set(email, { ...memory().get(email), ...next });
+    return next;
+  }
   for (let attempt = 0; attempt < 5; attempt++) {
     const { Item } = await db().send(new GetCommand({ TableName: table(), Key: { email }, ConsistentRead: true }));
     const user = toUser(email, Item);
@@ -196,6 +218,9 @@ export async function forgetPhone(email: string, endpoint: string) {
  * at the same moment.
  */
 export async function markAlerted(email: string, day: string) {
+  const item = localMode() ? memory().get(email) : undefined;
+  if (item) item.lastAlert = day;
+  if (localMode()) return;
   await db().send(
     new UpdateCommand({
       TableName: table(),
@@ -215,6 +240,7 @@ export const wantsAlerts = (u: User) => (u.notify && u.push.length > 0) || u.ema
  * a few thousand people, an index on alertMinute would be cheaper.
  */
 export async function usersToNotify(): Promise<User[]> {
+  if (localMode()) return [...memory().entries()].map(([email, item]) => toUser(email, item)).filter(wantsAlerts);
   const users: User[] = [];
   let start: Record<string, unknown> | undefined;
   do {

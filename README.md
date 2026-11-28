@@ -31,7 +31,9 @@ cp .env.local.example .env.local   # optional: every setting in it can stay empt
 npm run dev                        # http://localhost:3000
 ```
 
-With an empty `.env.local` the menus, hours and Cafe tab all work; logging in, favorites, notifications and analytics stay off until their settings are filled in. `npm run lint` runs ESLint.
+No accounts, keys or secrets are needed. With an empty `.env.local` (or none), `npm run dev` runs in **local test mode** (`web/lib/localMode.ts`): the menus, hours and Cafe tab work as usual, and "Log in" signs you in as a made-up test student instead of going to Google, so you can try Favorites and the alert settings. Everything you save is kept in the dev server's memory and is gone when it restarts. It never touches the real database, and it can't turn on in production (`next build` / `next start` and the live site always run as production). Push notifications, alert emails and analytics stay off until their settings are filled in. `npm run lint` runs ESLint.
+
+Never commit a filled-in `.env.local` (it's gitignored) or paste real keys into issues or pull requests. The live site's secrets stay in AWS Parameter Store; contributors don't need them.
 
 ## 3. AWS (hosting, favorites, the daily alerts)
 

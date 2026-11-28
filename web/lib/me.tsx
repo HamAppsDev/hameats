@@ -8,13 +8,15 @@ type MeState = {
   status: "loading" | "off" | "out" | "in";
   /** The public key for push notifications, or null when they aren't set up. */
   pushKey: string | null;
+  /** Local test mode (lib/localMode.ts): "Log in" signs in as a made-up test student instead of going to Google. */
+  localMode: boolean;
 };
 
 type Me = MeState & {
   refresh: () => void;
 };
 
-const INITIAL: MeState = { status: "loading", pushKey: null };
+const INITIAL: MeState = { status: "loading", pushKey: null, localMode: false };
 
 const MeContext = createContext<Me>({ ...INITIAL, refresh: () => {} });
 
@@ -39,6 +41,7 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
           setState({
             status: b.signedIn ? "in" : "out",
             pushKey: b.pushKey ?? null,
+            localMode: b.localMode === true,
           });
         })
         .catch(() => !cancelled && setState((s) => (s.status === "loading" ? { ...INITIAL, status: "off" } : s)));
