@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Cici } from "@/components/Cici";
 import { SiteFooter } from "@/components/SiteFooter";
 import { HAMAPPS_URL, SCHEDULER_URL } from "@/lib/site";
 
@@ -26,9 +27,12 @@ export default function AboutPage() {
           ← Home
         </Link>
 
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          About Ham<span className="text-gold">Eats</span>
-        </h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            About Ham<span className="text-gold">Eats</span>
+          </h1>
+          <Cici className="h-24 w-28" />
+        </div>
 
         <Section title="Summary">
           <p>
@@ -59,7 +63,8 @@ export default function AboutPage() {
             <a href={HAMAPPS_URL} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
               HamApps
             </a>
-            , a student-run club at Hamilton College building free apps for students. Planning next semester? Check out{" "}
+            , a student-run club at Hamilton College building free apps for students. That&apos;s Cici up top, the
+            HamApps mascot, with a bowl of HamEats. Planning next semester? Check out{" "}
             <a href={SCHEDULER_URL} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
               Hamilton Scheduler
             </a>{" "}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Cici } from "@/components/Cici";
 import { FEEDBACK_FORM_URL, HAMAPPS_URL, SCHEDULER_URL } from "@/lib/site";
 
 const FEEDBACK_NAME = "Brandon Taylor";
@@ -175,7 +176,8 @@ export function SiteFooter() {
         HamEats: Hamilton College dining menus and hours for Soper Commons, McEwen, the Diner and the Little Pub.
       </p>
       <p className="text-center">A student project, not affiliated with Hamilton College.</p>
-      <p className="text-center">
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-center">
+        <Cici className="mr-0.5 h-6 w-7" />
         Made by{" "}
         <a href={HAMAPPS_URL} className="font-medium text-zinc-700 hover:underline dark:text-zinc-300">
           HamApps

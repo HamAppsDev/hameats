@@ -11,6 +11,7 @@ import { DayPicker } from "@/components/DayPicker";
 import { ItemSheet } from "@/components/ItemSheet";
 import { track } from "@/lib/analytics";
 import { SiteTitle } from "@/components/SiteTitle";
+import { Cici } from "@/components/Cici";
 
 /**
  * The home layout: every hall's menu for the chosen day and meal on one page, with the day picker and meal tabs
@@ -95,14 +96,16 @@ function HallColumn({
         {hall.name}
       </h2>
 
+      {win && (
       <p className="flex flex-wrap items-center gap-2 text-[15px] text-muted">
         {servingNow && (
           <span className="rounded bg-gold px-2 py-1 text-[11px] font-bold uppercase leading-none tracking-[0.07em] text-zinc-950">
             Serving now
           </span>
         )}
-        <span>{win ? `${meal} · ${compactRange(win.open, win.close)}` : `No ${meal.toLowerCase()} ${isToday ? "today" : "this day"}`}</span>
+        <span>{`${meal} · ${compactRange(win.open, win.close)}`}</span>
       </p>
+      )}
 
       {stations.length > 0 ? (
         // Each station is labeled in spaced capitals with a hairline running out to the card's edge.
@@ -131,7 +134,13 @@ function HallColumn({
           ))}
         </div>
       ) : (
-        win && <p className="pb-2 pt-1 text-sm italic text-muted">No menu posted yet</p>
+        // Nothing to read here, so Cici (the HamApps mascot) keeps the empty card company.
+        <div className="flex items-center gap-3 pb-3 pt-1">
+          <Cici className="h-12 w-14" />
+          <p className="text-[15px] text-muted">
+            {win ? "No menu posted yet" : `No ${meal.toLowerCase()} ${isToday ? "today" : "this day"}`}
+          </p>
+        </div>
       )}
     </section>
   );
