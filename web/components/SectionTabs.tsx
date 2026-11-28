@@ -6,7 +6,7 @@ export type Section = "menu" | "cafe" | "profile";
 
 /**
  * Which part of the app the address shows: #cafe or #profile (#notifications opens the Profile on its Notifications
- * switch, which is where tapping a morning alert goes). Older addresses still land somewhere sensible: #feed and #updates
+ * switch, which is where tapping an alert goes). Older addresses still land somewhere sensible: #feed and #updates
  * (the tab's old names) are the Cafe tab,
  * #favorites and #me are the Profile. Anything else, including no hash, is the Menu. The dining halls' own pages
  * (#commons) are handled before this.

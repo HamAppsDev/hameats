@@ -1,14 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   HamEats on AWS, sized to stay inside AWS's always-free allowances: the app on Lambda behind CloudFront, favorites
-  in DynamoDB (provisioned 5/5, inside the free 25/25), secrets in Parameter Store, the 8 AM alert on EventBridge
-  Scheduler, and a role GitHub Actions uses to deploy. Deploy in us-east-2 (the project's Region). Steps: infra/aws/README.md.
+  in DynamoDB (provisioned 5/5, inside the free 25/25), secrets in Parameter Store, the daily alerts on EventBridge
+  Scheduler (every 15 minutes) and Amazon SES (alert emails), and a role GitHub Actions uses to deploy. Deploy in us-east-2 (the project's Region). Steps: infra/aws/README.md.
 
 Parameters:
   AlertEmail:
     Type: String
     Default: hamappsdevs@gmail.com
-    Description: Gets an email when the app errors or the 8 AM alert fails (confirm the subscription email once).
+    Description: Gets an email when the app errors or the daily alerts fail (confirm the subscription email once).
   VapidPublicKey:
     Type: String
     Description: NEXT_PUBLIC_VAPID_PUBLIC_KEY, the same value as on Vercel (not secret).
@@ -40,6 +40,12 @@ Parameters:
     Description: >-
       The same repository as GitHub now names it in its sign-in tokens (owner@id/name@id; see
       `gh api repos/OWNER/NAME/actions/oidc/customization/sub`). Accepted along with the plain owner/name form.
+  AlertEmailFrom:
+    Type: String
+    Default: alerts@hamapps.dev
+    Description: >-
+      The address alert emails come from (lib/email.ts). Its domain must be a verified SES identity in this Region;
+      the app may send only from this address.
   CreateGitHubOidcProvider:
     Type: String
     AllowedValues: ["true", "false"]
@@ -102,6 +108,15 @@ Resources:
                 Condition:
                   StringEquals:
                     kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+              # Alert emails (lib/email.ts), only from AlertEmailFrom.
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub
+                  - arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${Domain}
+                  - Domain: !Select [1, !Split ["@", !Ref AlertEmailFrom]]
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Ref AlertEmailFrom
 
   AppLogs:
     Type: AWS::Logs::LogGroup
@@ -126,6 +141,7 @@ Resources:
           SSM_PREFIX: /hameats
           HAMEATS_DYNAMODB_TABLE: !Ref TableName
           NEXT_PUBLIC_VAPID_PUBLIC_KEY: !Ref VapidPublicKey
+          HAMEATS_EMAIL_FROM: !Sub HamEats <${AlertEmailFrom}>
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: "1"
       Code:
@@ -330,7 +346,9 @@ Resources:
               - EventType: viewer-request
                 FunctionARN: !GetAtt ForwardedHost.FunctionMetadata.FunctionARN
 
-  # ---- The 8 AM alert: EventBridge Scheduler invokes the function directly at 8:00 campus time, all year.
+  # ---- The daily alerts: EventBridge Scheduler invokes the function every 15 minutes, campus time, all year; each run
+  # sends to the people whose picked time has come (app/api/cron/alerts/route.ts). About 2,900 runs a month, inside the
+  # free 14 million Scheduler invocations and 1 million Lambda requests.
   AlertsSchedulerRole:
     Type: AWS::IAM::Role
     Properties:
@@ -356,8 +374,8 @@ Resources:
     Type: AWS::Scheduler::Schedule
     Properties:
       Name: hameats-morning-alert
-      Description: The 8 AM favorites alert (app/api/cron/alerts/route.ts)
-      ScheduleExpression: cron(0 8 * * ? *)
+      Description: The daily favorites alerts, every 15 minutes (app/api/cron/alerts/route.ts)
+      ScheduleExpression: cron(0/15 * * * ? *)
       ScheduleExpressionTimezone: America/New_York
       FlexibleTimeWindow:
         Mode: "OFF"
@@ -412,7 +430,7 @@ Resources:
                 Action: [cloudfront:CreateInvalidation, cloudfront:GetInvalidation]
                 Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
 
-  # ---- Problem emails: the app erroring, and the 8 AM alert not succeeding. Inside the always-free 10 alarms and
+  # ---- Problem emails: the app erroring, and an alerts run not succeeding. Inside the always-free 10 alarms and
   # 1,000 SNS emails a month. AWS sends a one-time "confirm subscription" email to AlertEmail first.
   ProblemsTopic:
     Type: AWS::SNS::Topic
@@ -480,7 +498,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: hameats-morning-alert-failed
-      AlarmDescription: The 8 AM favorites alert didn't succeed. Logs are in /aws/lambda/hameats (search "alerts:").
+      AlarmDescription: A run of the daily favorites alerts didn't succeed. Logs are in /aws/lambda/hameats (search "alerts:").
       Namespace: HamEats
       MetricName: MorningAlertFailed
       Statistic: Sum

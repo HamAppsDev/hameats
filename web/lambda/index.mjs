@@ -3,7 +3,7 @@
 //
 //   visitor -> CloudFront (hameats.app, HTTPS) -> Lambda function URL -> this handler -> Next.js on 127.0.0.1
 //
-// It also runs the 8 AM alert when EventBridge Scheduler invokes the function with { "hameats": "alerts" }.
+// It also runs the daily alerts (every 15 minutes) when EventBridge Scheduler invokes the function with { "hameats": "alerts" }.
 // The package is made by scripts/package-lambda.sh; infra/aws/hameats.yaml sets everything up.
 
 import http from "node:http";
@@ -73,7 +73,7 @@ const text = (statusCode, message) => ({ statusCode, headers: { "content-type": 
 export async function handler(event) {
   await ready;
 
-  // The morning alert, from EventBridge Scheduler (only AWS can invoke the function this way).
+  // The daily alerts, from EventBridge Scheduler (only AWS can invoke the function this way).
   if (event?.hameats === "alerts") {
     const res = await forward({
       method: "GET",

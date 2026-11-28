@@ -21,9 +21,10 @@ GitHub Actions, every push to main ─▶ builds web/ ─▶ replaces the functi
 | Lambda | Runs the app | 1M requests + 400,000 GB-seconds a month | a few thousand requests |
 | CloudFront | HTTPS, your domain, caches static files | 1 TB + 10M requests a month | well under 1 GB |
 | CloudFront Functions | Passes on the address the visitor used | 2M a month | one per page request |
-| DynamoDB | Favorites and the notifications switch | 25 GB, 25 reads/s and 25 writes/s (provisioned) | 5/5, a few KB |
+| DynamoDB | Favorites and notification settings | 25 GB, 25 reads/s and 25 writes/s (provisioned) | 5/5, a few KB |
 | Parameter Store | Secrets (standard parameters) | free | 8 settings |
-| EventBridge Scheduler | The 8 AM alert | 14M a month | 30 a month |
+| EventBridge Scheduler | The daily alerts, run every 15 minutes | 14M a month | about 2,900 a month |
+| SES | Alert emails, from alerts@hamapps.dev | none: $0.10 per 1,000 emails | a few cents a month at most |
 | CloudWatch Logs | The app's logs, kept 14 days | 5 GB a month | small |
 
 Things the setup avoids because they cost money: a load balancer, Route 53 hosted zones ($0.50/month), Secrets
@@ -104,8 +105,8 @@ Open `SiteUrl`. The menus, hours, search and favorites should all work. To try l
 `https://<CloudFrontDomain>/api/auth/callback/google` to the Google OAuth client's authorized redirect URIs
 (console.cloud.google.com → APIs & Services → Credentials), and remove it again afterwards.
 
-To try the 8 AM alert without waiting: AWS console → Lambda → hameats → Test, with the event
-`{"hameats":"alerts"}`. Outside 8 AM it answers `not 8 AM on campus`, which means it worked.
+To try the alerts without waiting: AWS console → Lambda → hameats → Test, with the event
+`{"hameats":"alerts"}`. When nobody's picked time has just come it answers `{"due":0}`, which means it worked.
 
 ## 5. Get a certificate for hameats.app
 

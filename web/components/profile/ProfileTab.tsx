@@ -21,8 +21,8 @@ const Bell = ({ className = "size-5" }: { className?: string }) => (
 type Panel = "favorites" | "notifications";
 
 /**
- * The Profile tab: who's logged in, then two panels, Favorites (a card per saved dish) and Notifications (one switch for
- * push notifications about them). `notifications` opens on Notifications (the #notifications address, where tapping an
+ * The Profile tab: who's logged in, then two panels, Favorites (a card per saved dish) and Notifications (the alert time, and
+ * switches for push and email alerts about them). `notifications` opens on Notifications (the #notifications address, where tapping an
  * alert goes).
  */
 export function ProfileTab({ notifications = false }: { notifications?: boolean }) {
@@ -126,8 +126,8 @@ function SignedOut() {
         <StarIcon filled={false} className="mx-auto size-10 text-gold-ink dark:text-gold" />
         <h2 className="mt-2 font-display text-2xl font-bold">Save your favorite dishes</h2>
         <p className="mx-auto mt-1.5 max-w-sm text-[15px] text-muted">
-          Log in with your Hamilton account to save the dishes you love and get a notification the morning one is on the
-          menu.
+          Log in with your Hamilton account to save the dishes you love and get a notification or email, at the time you pick,
+          the day one is on the menu.
         </p>
         <button
           type="button"
@@ -150,7 +150,7 @@ function SignedOut() {
         <li className="flex gap-3">
           <Bell className="mt-0.5 size-5 shrink-0 text-accent" />
           <span>
-            <strong>Notifications</strong> <span className="text-muted">at 8 AM tell you which favorites are on that day, where, and for which meal.</span>
+            <strong>Notifications</strong> <span className="text-muted">by push or email, at the time you pick, tell you which favorites are on that day, where, and for which meal.</span>
           </span>
         </li>
       </ul>

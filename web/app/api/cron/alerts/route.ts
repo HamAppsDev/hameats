@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
-import { sendAlerts } from "@/lib/alerts";
-import { storeEnabled } from "@/lib/users";
+import { dueNow, sendAlerts } from "@/lib/alerts";
+import { storeEnabled, usersToNotify } from "@/lib/users";
 import { campusNow } from "@/lib/hours";
 import { fetchMenus } from "@/lib/menuSource";
 import { withMirroredMenus } from "@/lib/mirroredMenus";
@@ -9,9 +9,6 @@ import { withStandingMenus } from "@/lib/standingMenus";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-/** The campus hour (Eastern time) the alerts go out in. */
-const ALERT_HOUR = 8;
 
 /**
  * The scheduler sends "Authorization: Bearer <CRON_SECRET>": on AWS, the Lambda handler (web/lambda/index.mjs) does,
@@ -25,19 +22,21 @@ function fromScheduler(request: Request) {
 }
 
 /**
- * The morning alerts, at 8 AM on campus. EventBridge Scheduler runs this at 8:00 America/New_York; only a run that lands
- * in the 8 o'clock hour on campus sends anything; ?force=1 sends at any hour, for testing. Fetches today's menus, then sends each person with
- * notifications on one notification about their favorites on it.
+ * The daily alerts, each at the time its person picked. EventBridge Scheduler runs this every 15 minutes, campus time;
+ * each run sends to the people whose time has just come (lib/alerts.ts dueNow). The menus are only fetched when
+ * someone is due. ?force=1 sends to everyone with alerts on who hasn't had one today, whatever their time, for testing.
  */
 export async function GET(request: Request) {
   if (!fromScheduler(request)) return new Response("unauthorized", { status: 401 });
   if (!storeEnabled()) return Response.json({ skipped: "favorites table not set up" });
   const now = campusNow();
   const force = new URL(request.url).searchParams.get("force") === "1";
-  if (!force && Math.floor(now.minutes / 60) !== ALERT_HOUR) return Response.json({ skipped: `not ${ALERT_HOUR} AM on campus` });
   try {
+    const everyone = await usersToNotify();
+    const due = force ? everyone.filter((u) => u.lastAlert !== now.iso) : dueNow(everyone, now.iso, now.minutes);
+    if (!due.length) return Response.json({ due: 0 });
     const menus = await fetchMenus(1, 0);
-    const result = await sendAlerts(withSpecials(withMirroredMenus(withStandingMenus(menus))), now.iso);
+    const result = await sendAlerts(withSpecials(withMirroredMenus(withStandingMenus(menus))), now.iso, due);
     console.log("alerts:", JSON.stringify(result));
     return Response.json(result);
   } catch (e) {

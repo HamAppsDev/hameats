@@ -6,7 +6,7 @@ The home screen shows every hall's menu for the chosen day and meal on one page:
 
 Covers Soper Commons, McEwen, Howard Diner and Little Pub. It installs as an app (PWA) and works offline: the service worker (`web/app/sw.js/route.ts`) caches the app and the last menus. Every deploy gets its own build ID (the git commit), so installed apps pick up new deploys on their own: opening or returning to the app reloads into the new version, and while it's in use an Update bar appears (`web/components/AppUpdater.tsx`).
 
-The app has three tabs: **Menu** (the halls), **Cafe** and **Profile** (Favorites and the 8 AM notification switch, for people logged in with Google).
+The app has three tabs: **Menu** (the halls), **Cafe** and **Profile** (Favorites and notification settings, for people logged in with Google).
 
 Hall hours live in `web/lib/hours.ts`; update them there when the dining schedule changes.
 
@@ -33,11 +33,11 @@ npm run dev                        # http://localhost:3000
 
 With an empty `.env.local` the menus, hours and Cafe tab all work; logging in, favorites, notifications and analytics stay off until their settings are filled in. `npm run lint` runs ESLint.
 
-## 3. AWS (hosting, favorites, the 8 AM alert)
+## 3. AWS (hosting, favorites, the daily alerts)
 
-HamEats runs on AWS: the Next.js server on Lambda behind CloudFront, favorites in DynamoDB, and the 8 AM alert on EventBridge Scheduler, all inside AWS's always-free allowances. Every push to `main` that touches `web/` builds and deploys it (`.github/workflows/deploy-aws.yml`). The setup, from scratch, is in **[infra/aws/README.md](infra/aws/README.md)**; everything AWS creates is in `infra/aws/hameats.yaml`.
+HamEats runs on AWS: the Next.js server on Lambda behind CloudFront, favorites in DynamoDB, the daily alerts on EventBridge Scheduler (every 15 minutes) and Amazon SES (alert emails), all inside AWS's always-free allowances. Every push to `main` that touches `web/` builds and deploys it (`.github/workflows/deploy-aws.yml`). The setup, from scratch, is in **[infra/aws/README.md](infra/aws/README.md)**; everything AWS creates is in `infra/aws/hameats.yaml`.
 
-People who log in can save favorite dishes and turn on an 8 AM push notification about them. That is the only thing saved, all in one DynamoDB table with one item per person (`web/lib/users.ts`): their email, their favorites, whether notifications are on, and (only while they're on) the push address of each phone that allowed them.
+People who log in can save favorite dishes and get a daily alert about them, by push notification and/or email, at a time they pick (any 15 minutes of the day, campus time). That is the only thing saved, all in one DynamoDB table with one item per person (`web/lib/users.ts`): their email, their favorites, which alerts are on, their alert time, the date of their last alert, and (only while push is on) the push address of each phone that allowed them. Alert emails need `HAMEATS_EMAIL_FROM` (set by the stack) and `AUTH_SECRET`, which signs their unsubscribe links.
 
 For local development against the real table, set `HAMEATS_DYNAMODB_TABLE`, `HAMEATS_AWS_REGION`, `HAMEATS_AWS_ACCESS_KEY_ID` and `HAMEATS_AWS_SECRET_ACCESS_KEY` in `web/.env.local` (see `web/.env.local.example`). Without them, favorites and notifications are switched off and the rest of the app works as usual.
 

@@ -26,13 +26,26 @@ function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (on:
 const BLOCKED =
   "Notifications are blocked for HamEats. To allow them, open your phone's Settings, find HamEats (or your browser), and turn on Notifications. Then try again.";
 
+/** Alert times, every 15 minutes of the day, as minutes after midnight on campus. */
+const TIMES = Array.from({ length: 96 }, (_, i) => i * 15);
+
+/** 480 -> "8:00 AM". */
+export const timeLabel = (m: number) => `${((Math.floor(m / 60) + 11) % 12) + 1}:${String(m % 60).padStart(2, "0")} ${m < 720 ? "AM" : "PM"}`;
+
+const card = "flex items-start gap-4 rounded-[10px] border border-rule bg-surface px-4 py-3 shadow-[0_8px_20px_-14px] shadow-black/20";
+
+type Settings = { notify: boolean; email: boolean; time: number; emailAvailable: boolean };
+
 /**
- * The Notifications on your Profile: one switch. On, this phone gets a push notification the morning a favorite is
- * served (the morning alert, lib/alerts.ts, covers every favorite). Off stops the alerts and this phone's notifications.
+ * The Notifications on your Profile: when the daily alert goes out (any time of day, in 15-minute steps, campus time),
+ * and two switches for how: push notifications on this phone, and an email to their Hamilton address. The alert
+ * (lib/alerts.ts) only comes on days a favorite is on the menu.
  */
 export function NotificationsPanel() {
   const me = useMe();
-  const [on, setOn] = useState<boolean | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const on = settings?.notify ?? null;
+  const setOn = (notify: boolean) => setSettings((s) => s && { ...s, notify });
   const [failed, setFailed] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +54,16 @@ export function NotificationsPanel() {
     let cancelled = false;
     fetch("/api/settings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((b: { notify: boolean }) => !cancelled && setOn(b.notify === true))
+      .then(
+        (b: Partial<Settings>) =>
+          !cancelled &&
+          setSettings({
+            notify: b.notify === true,
+            email: b.email === true,
+            time: typeof b.time === "number" ? b.time : 480,
+            emailAvailable: b.emailAvailable === true,
+          }),
+      )
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
@@ -90,21 +112,69 @@ export function NotificationsPanel() {
     setBusy(false);
   };
 
-  if (on === null) return <p className="py-6 text-center text-muted">{failed ? "Couldn't load your settings. Check your connection and try again." : "Loading…"}</p>;
+  // Saved straight away; put back if the save fails.
+  const change = async (field: "email" | "time", value: boolean | number) => {
+    if (!settings) return;
+    setNote("");
+    const before = settings;
+    setSettings({ ...settings, [field]: value });
+    track(field === "email" ? "email_alerts_toggled" : "alert_time_changed", field === "email" ? { on: value } : { minute: value });
+    try {
+      await api("/api/settings", "PUT", { [field]: value });
+    } catch (e) {
+      setSettings(before);
+      setNote((e as Error).message);
+    }
+  };
 
+  if (!settings || on === null) return <p className="py-6 text-center text-muted">{failed ? "Couldn't load your settings. Check your connection and try again." : "Loading…"}</p>;
+
+  const anyOn = on || settings.email;
   return (
-    <section>
-      <div className="flex items-start gap-4 rounded-[10px] border border-rule bg-surface px-4 py-3 shadow-[0_8px_20px_-14px] shadow-black/20">
+    <section className="space-y-3">
+      <div className={card}>
+        <div className="min-w-0 flex-1">
+          <label htmlFor="alert-time" className="text-[16.5px] font-semibold leading-snug">
+            Alert time
+          </label>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted">
+            {anyOn ? "Every day at this time" : "Once you turn on an alert below, it comes at this time"}, if one of your favorites is on that day&apos;s menu.
+            Campus time.
+          </p>
+        </div>
+        <select
+          id="alert-time"
+          value={settings.time}
+          onChange={(e) => void change("time", Number(e.target.value))}
+          className="shrink-0 rounded-lg border border-rule bg-background px-2.5 py-1.5 text-[15px] font-medium"
+        >
+          {TIMES.map((m) => (
+            <option key={m} value={m}>
+              {timeLabel(m)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={card}>
         <div className="min-w-0 flex-1">
           <p className="text-[16.5px] font-semibold leading-snug">Push notifications</p>
           <p className="mt-0.5 text-[13px] leading-snug text-muted">
-            A notification on this phone the morning one of your favorites is served. On iPhone this only works once HamEats is on your Home Screen.
+            A notification on this phone. On iPhone this only works once HamEats is on your Home Screen.
           </p>
         </div>
         <Switch on={on} onChange={(next) => void toggle(next)} label="Push notifications" disabled={busy} />
       </div>
+      {settings.emailAvailable && (
+        <div className={card}>
+          <div className="min-w-0 flex-1">
+            <p className="text-[16.5px] font-semibold leading-snug">Email</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-muted">An email to your Hamilton address. Works on any phone or computer.</p>
+          </div>
+          <Switch on={settings.email} onChange={(next) => void change("email", next)} label="Email alerts" />
+        </div>
+      )}
       {note && (
-        <p role="status" className="mt-2 px-1 text-[13px] text-zinc-700 dark:text-zinc-300">
+        <p role="status" className="px-1 text-[13px] text-zinc-700 dark:text-zinc-300">
           {note}
         </p>
       )}

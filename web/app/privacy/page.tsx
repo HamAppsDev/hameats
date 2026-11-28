@@ -27,7 +27,7 @@ export default function PrivacyPage() {
 
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Privacy Policy</h1>
-          <p className="text-sm italic">Last updated: November 26, 2026</p>
+          <p className="text-sm italic">Last updated: November 28, 2026</p>
         </div>
 
         <p>
@@ -79,8 +79,10 @@ export default function PrivacyPage() {
           </p>
           <p>
             <strong className="text-zinc-900 dark:text-zinc-100">Notifications (only if you turn them on).</strong> HamEats
-            saves that they&apos;re on, and the address your phone or browser gives for sending them, which is the only way a
-            notification can reach your phone. Turning notifications off erases that address. The notifications themselves
+            saves which ones are on (push, email or both), the time you picked, and the date the last one was sent, so you
+            never get two in a day. For push, it also saves the address your phone or browser gives for sending them, which
+            is the only way a notification can reach your phone; turning push off erases that address. Email alerts go to
+            your Hamilton email address, which HamEats already has from your login. The notifications and emails themselves
             aren&apos;t saved.
           </p>
           <p>
@@ -119,8 +121,8 @@ export default function PrivacyPage() {
 
         <Section title="Who I share it with">
           <p>
-            Only the services that run HamEats: PostHog (analytics), Amazon Web Services (hosting, and DynamoDB,
-            the database that stores favorites and the notifications switch) and Google (log in and feedback forms). They process data on my behalf under their
+            Only the services that run HamEats: PostHog (analytics), Amazon Web Services (hosting; DynamoDB,
+            the database that stores favorites and notification settings; and Amazon SES, which sends alert emails) and Google (log in and feedback forms). They process data on my behalf under their
             own privacy policies. I don&apos;t share it with anyone else, except if the law requires it.
           </p>
         </Section>
@@ -133,7 +135,7 @@ export default function PrivacyPage() {
           </p>
           <p>
             Deleting your account (email me to ask) deletes everything HamEats keeps about you: your email address, your
-            favorites, and your notifications setting and push addresses.
+            favorites, and your notification settings and push addresses.
           </p>
         </Section>
 
@@ -141,7 +143,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-6">
             <li>Block analytics by using a tracking blocker, or by clearing your browser data.</li>
             <li>Log out at any time, and remove any favorite.</li>
-            <li>Turn notifications on or off on your Profile, under Notifications.</li>
+            <li>Turn push or email notifications on or off, or change their time, on your Profile, under Notifications. Every alert email also has an unsubscribe link.</li>
             <li>Ask me for a copy of everything HamEats keeps about you.</li>
             <li>Ask me to delete your account and everything you&apos;ve saved.</li>
             <li>Ask me to delete any feedback you&apos;ve submitted.</li>

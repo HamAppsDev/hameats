@@ -2,11 +2,12 @@ import "server-only";
 import webpush from "web-push";
 import { HALLS } from "@/lib/halls";
 import { MEALS, type MenuData } from "@/lib/types";
-import { forgetPhone, sameDish, usersToNotify, type User } from "@/lib/users";
+import { emailReady, sendAlertEmail } from "@/lib/email";
+import { ALERT_STEP, forgetPhone, markAlerted, sameDish, type User } from "@/lib/users";
 
-// The morning alert: for everyone who turned notifications on, their favorites that are on today's menu, each with its
-// dining hall and meal, sent to their phones as one notification. Nothing about it is saved. Howard Diner dishes are
-// left out: the Diner serves them every day.
+// The daily alert: for everyone who turned alerts on, at the time they picked, their favorites that are on today's
+// menu, each with its dining hall and meal, as one push notification to their phones and/or one email. Only the date
+// it was sent is saved. Howard Diner dishes are left out: the Diner serves them every day.
 
 export type DishToday = { dish: string; hall: string; meal: string };
 
@@ -89,45 +90,82 @@ export function alertText(dishes: DishToday[]) {
   return { title, body: lines.join("\n"), pushBody: shown.join("\n"), url: ALERT_URL };
 }
 
-type Sender = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string) => Promise<void>;
+type PushSender = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string) => Promise<void>;
+type EmailSender = (to: string, title: string, lines: string[]) => Promise<void>;
+
+/** How far back a run looks for alert times it may have missed (a late or failed run), in minutes. */
+const CATCH_UP = 2 * ALERT_STEP;
+
+/** The test login (lib/auth.ts) has no mailbox; emailing it would bounce. */
+const mailable = (email: string) => !email.endsWith("@hameats.app");
 
 /**
- * Sends today's alerts (when push is set up: VAPID keys). Phones that no longer accept notifications (404 or 410) are
- * forgotten. The scheduler runs this once in the 8 o'clock hour (see app/api/cron/alerts/route.ts), so each person gets one a day.
+ * Who is due an alert at `minutes` (campus time) on `day`: their alert time has come within the last CATCH_UP minutes,
+ * and they haven't had one today. Times later than now wait for a later run.
  */
-export async function sendAlerts(data: MenuData, day: string, send: Sender | null = pushReady() ? defaultSender() : null) {
+export const dueNow = (users: User[], day: string, minutes: number) =>
+  users.filter((u) => u.lastAlert !== day && u.alertMinute <= minutes && u.alertMinute > minutes - CATCH_UP);
+
+/**
+ * Sends today's alerts to `people` (from dueNow): a push notification to each of their phones (when push is set up:
+ * VAPID keys) and an email (when SES is set up and they turned email on). Phones that no longer accept notifications
+ * (404 or 410) are forgotten. Everyone reached is marked for today, so later runs skip them.
+ */
+export async function sendAlerts(
+  data: MenuData,
+  day: string,
+  people: User[],
+  push: PushSender | null = pushReady() ? defaultPushSender() : null,
+  email: EmailSender | null = emailReady() ? sendAlertEmail : null,
+) {
   const today = dishesOn(data, day);
-  let people = 0;
-  let notified = 0;
-  let removed = 0;
-  if (!send || !today.length) return { people, notified, removed };
-  for (const user of await usersToNotify()) {
+  const result = { due: people.length, withFavorites: 0, pushed: 0, emailed: 0, removed: 0, failed: 0 };
+  if (!today.length) return result;
+  for (const user of people) {
     const dishes = favoritesToday(user, today);
     if (!dishes.length) continue;
-    people++;
+    result.withFavorites++;
     const text = alertText(dishes);
-    const payload = JSON.stringify({ title: text.title, body: text.pushBody, url: text.url, tag: `menu-${day}` });
-    let delivered = false;
-    for (const p of user.push) {
+    let reached = false;
+    if (push && user.notify) {
+      const payload = JSON.stringify({ title: text.title, body: text.pushBody, url: text.url, tag: `menu-${day}` });
+      let delivered = false;
+      for (const p of user.push) {
+        try {
+          await push({ endpoint: p.endpoint, keys: { p256dh: p.p256dh, auth: p.auth } }, payload);
+          delivered = true;
+        } catch (e) {
+          const status = (e as { statusCode?: number }).statusCode;
+          if (status === 404 || status === 410) {
+            await forgetPhone(user.email, p.endpoint);
+            result.removed++;
+          } else {
+            result.failed++;
+            console.error("push failed:", status, (e as Error).message);
+          }
+        }
+      }
+      if (delivered) result.pushed++;
+      reached ||= delivered;
+    }
+    if (email && user.emailAlerts && mailable(user.email)) {
       try {
-        await send({ endpoint: p.endpoint, keys: { p256dh: p.p256dh, auth: p.auth } }, payload);
-        delivered = true;
+        await email(user.email, text.title, dishLines(dishes));
+        result.emailed++;
+        reached = true;
       } catch (e) {
-        const status = (e as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) {
-          await forgetPhone(user.email, p.endpoint);
-          removed++;
-        } else console.error("push failed:", status, (e as Error).message);
+        result.failed++;
+        console.error("email failed:", (e as { name?: string }).name, (e as Error).message);
       }
     }
-    if (delivered) notified++;
+    if (reached) await markAlerted(user.email, day);
   }
-  return { people, notified, removed };
+  return result;
 }
 
 export const pushReady = () => !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && !!process.env.VAPID_PRIVATE_KEY;
 
-function defaultSender(): Sender {
+function defaultPushSender(): PushSender {
   webpush.setVapidDetails("mailto:bntaylor@hamilton.edu", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
   return async (sub, payload) => {
     await webpush.sendNotification(sub, payload, { TTL: 6 * 3600, urgency: "normal" });
