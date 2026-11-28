@@ -1,9 +1,10 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import { SITE_URL } from "@/lib/site";
+import { FEEDBACK_FORM_URL, SITE_URL } from "@/lib/site";
 
-// The alert email, sent with Amazon SES from HAMEATS_EMAIL_FROM (a verified address; on AWS the server's role may send
+// The alert email, sent with Amazon SES from HAMEATS_EMAIL_FROM (send-only: replies bounce, so the footer points to
+// the feedback form) (a verified address; on AWS the server's role may send
 // only from it). Every email has an unsubscribe link, and the List-Unsubscribe headers mail apps use for their own
 // "Unsubscribe" button. The link's token is a signature of the address with AUTH_SECRET, so nobody can unsubscribe
 // someone else.
@@ -44,6 +45,8 @@ export function alertEmail(to: string, title: string, lines: string[]) {
     "",
     `You get this because you turned on email alerts in HamEats. Change the time or turn them off: ${settings}`,
     `Unsubscribe: ${unsub}`,
+    "",
+    `This is an automatic email, so replies aren't read. To tell us something, use the feedback form: ${FEEDBACK_FORM_URL}`,
   ].join("\n");
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#18181b">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:24px">
@@ -52,7 +55,8 @@ export function alertEmail(to: string, title: string, lines: string[]) {
 <a href="${menu}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;font-weight:600;padding:10px 16px;border-radius:8px">See the menu</a>
 </div>
 <p style="max-width:480px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#71717a">You get this because you turned on email alerts in HamEats.
-<a href="${settings}" style="color:#71717a">Change the time or turn them off</a> · <a href="${unsub}" style="color:#71717a">Unsubscribe</a></p>
+<a href="${settings}" style="color:#71717a">Change the time or turn them off</a> · <a href="${unsub}" style="color:#71717a">Unsubscribe</a><br>
+This is an automatic email, so replies aren&#39;t read. To tell us something, use the <a href="${FEEDBACK_FORM_URL}" style="color:#71717a">feedback form</a>.</p>
 </body></html>`;
   return { subject: title, text, html };
 }
