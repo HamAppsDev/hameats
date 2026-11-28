@@ -9,6 +9,15 @@ export function Cici({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="-40 -40 1170 1070" aria-hidden className={`shrink-0 overflow-visible ${className}`}>
       <circle cx="545" cy="490" r="600" fill="#e6edf7" className="hidden dark:inline" />
+      <CiciBowlArt />
+    </svg>
+  );
+}
+
+/** The drawing itself (Cici and the bowl) in its own 1100-unit space, for pictures that place it in a scene. */
+export function CiciBowlArt() {
+  return (
+    <>
       {/* Cici, mirrored to face right. */}
       <g transform="translate(997 0) scale(-1 1)">
         <g transform="rotate(-6 500 420)">
@@ -35,14 +44,14 @@ export function Cici({ className = "" }: { className?: string }) {
       </g>
       {/* The HamEats bowl, with its gold H and steam, under Cici's paw. */}
       <g stroke="#0f366f" strokeWidth={32} strokeLinejoin="round" strokeLinecap="round">
-        <path d="M500 735 H1090 A295 250 0 0 1 500 735 Z" fill="#ffffff" />
+        <path d="M395 735 H985 A295 250 0 0 1 395 735 Z" fill="#ffffff" />
         <g fill="none" stroke="#f0b100" strokeWidth={34}>
           <path d="M580 690 C555 640 615 600 585 540" />
           <path d="M695 690 C670 640 730 600 700 540" />
           <path d="M810 690 C785 640 845 600 815 540" />
         </g>
       </g>
-      <path fill="#f0b100" d="M735 790 h42 v50 h52 v-50 h42 v132 h-42 v-50 h-52 v50 h-42 Z" />
-    </svg>
+      <path fill="#f0b100" d="M630 790 h42 v50 h52 v-50 h42 v132 h-42 v-50 h-52 v50 h-42 Z" />
+    </>
   );
 }
