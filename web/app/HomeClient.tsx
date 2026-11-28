@@ -282,8 +282,8 @@ function Home({ initialMenu }: { initialMenu: MenuData | null }) {
   const data = useMemo(() => posted && withSpecials(withMirroredMenus(withStandingMenus(posted))), [posted]);
   const hash = useHash();
   const hall = hallBySlug(hash);
-  // No hall page open: the Menu, Cafe or Profile, by the address (#cafe, #profile; #notifications opens the Profile
-  // on its Notifications).
+  // No hall page open: the Menu, Cafe or Favorites, by the address (#cafe, #profile; #notifications opens Favorites
+  // scrolled to its Alerts).
   const { section, notifications } = sectionFor(hash);
   const now = useCampusNow();
   // When the campus date rolls over (usually the app being reopened the next day), fetch the menus
@@ -372,7 +372,7 @@ function Home({ initialMenu }: { initialMenu: MenuData | null }) {
   );
 }
 
-/** Sign-in and favorites wrap the whole home screen, so the halls, the food pages and the Profile share them. */
+/** Sign-in and favorites wrap the whole home screen, so the halls, the food pages and Favorites share them. */
 export function HomeClient(props: { initialMenu: MenuData | null }) {
   return (
     <SessionProvider>

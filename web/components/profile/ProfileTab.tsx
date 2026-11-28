@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useEffect, useRef } from "react";
 import { useMe } from "@/lib/me";
-import { useFavorites } from "@/lib/favorites";
 import { signInWithGoogle } from "@/lib/login";
 import { track } from "@/lib/analytics";
 import { StarIcon } from "@/components/FavoriteButton";
-import { goToSection } from "@/components/SectionTabs";
 import { FavoritesPanel } from "@/components/profile/FavoritesPanel";
 import { NotificationsPanel } from "@/components/profile/NotificationsPanel";
 
@@ -18,107 +15,49 @@ const Bell = ({ className = "size-5" }: { className?: string }) => (
   </svg>
 );
 
-type Panel = "favorites" | "notifications";
-
 /**
- * The Profile tab: who's logged in, then two panels, Favorites (a card per saved dish) and Notifications (the alert time, and
- * switches for push and email alerts about them). `notifications` opens on Notifications (the #notifications address, where tapping an
- * alert goes).
+ * The Favorites tab (inside the code and analytics it's still the "profile" section, so older data lines up): the saved
+ * dishes, then Alerts, the time and the switches for push and email alerts about them. One page, no sub-tabs, so the
+ * dishes you'll be alerted about are right above the alert settings. `notifications` (the #notifications address, where
+ * tapping an alert or an email's settings link goes) scrolls down to Alerts. Logging out is in the header's account
+ * button.
  */
 export function ProfileTab({ notifications = false }: { notifications?: boolean }) {
   const me = useMe();
-  const { favorites, status } = useFavorites();
-  // The panel follows the address (#profile or #notifications), so Back, a reload and a tapped alert all land right.
-  const panel: Panel = notifications ? "notifications" : "favorites";
+  const alertsRef = useRef<HTMLElement>(null);
+  const signedIn = me.status === "in";
+
+  useEffect(() => {
+    if (notifications && signedIn) alertsRef.current?.scrollIntoView({ block: "start" });
+  }, [notifications, signedIn]);
 
   if (me.status === "loading") return <p className="py-16 text-center text-muted">Loading…</p>;
   if (me.status === "off")
     return <p className="px-4 py-16 text-center text-muted">Favorites and alerts aren&apos;t available right now. Please try again later.</p>;
   if (me.status === "out") return <SignedOut />;
 
-  const choose = (p: Panel) => {
-    if (p === panel) return;
-    track("profile_panel_opened", { panel: p });
-    goToSection(p === "notifications" ? "notifications" : "profile");
-  };
-
   return (
-    <main className="mx-auto w-full max-w-2xl pb-12">
-      <Hero saved={status === "ready" ? favorites.length : null} />
+    <main className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-12 pt-5">
+      <section aria-labelledby="favorites-title" className="space-y-3">
+        <h2 id="favorites-title" className="flex items-center gap-2 font-display text-2xl font-bold">
+          <StarIcon filled className="size-6 text-gold-ink dark:text-gold" />
+          Favorites
+        </h2>
+        <FavoritesPanel />
+      </section>
 
-      <div className="px-4 pt-5">
-        <div role="tablist" aria-label="Profile" className="grid grid-cols-2 gap-1 rounded-xl border border-rule bg-surface p-1">
-          {(
-            [
-              ["favorites", "Favorites", <StarIcon key="i" filled={panel === "favorites"} className="size-[18px]" />],
-              ["notifications", "Notifications", <Bell key="i" className="size-[18px]" />],
-            ] as const
-          ).map(([id, label, icon]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={panel === id}
-              onClick={() => choose(id)}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-lg text-[15.5px] font-semibold transition ${
-                panel === id ? "bg-accent-fill text-on-accent shadow-sm" : "text-muted hover:text-foreground"
-              }`}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-4 pt-5">{panel === "favorites" ? <FavoritesPanel /> : <NotificationsPanel />}</div>
+      <section ref={alertsRef} aria-labelledby="alerts-title" className="scroll-mt-36 space-y-3">
+        <h2 id="alerts-title" className="flex items-center gap-2 font-display text-2xl font-bold">
+          <Bell className="size-6 text-accent" />
+          Alerts
+        </h2>
+        <NotificationsPanel />
+      </section>
     </main>
   );
 }
 
-/**
- * The top of the Profile: the start of the person's Hamilton email (the part before the @, never the whole address or
- * their name), with its first letter as their picture.
- */
-function Hero({ saved }: { saved: number | null }) {
-  const { data: session } = useSession();
-  const handle = (session?.user?.email ?? "").split("@")[0];
-  const initial = handle[0]?.toUpperCase() ?? "";
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <section className="bg-band bg-[linear-gradient(to_bottom,transparent_25%,rgb(0_0_0/0.35))] px-4 pb-5 pt-5 text-band-ink">
-      <div className="flex items-center gap-4">
-        <span aria-hidden className="flex size-[72px] shrink-0 items-center justify-center rounded-full bg-gold font-display text-4xl font-bold text-zinc-950 ring-4 ring-band-ink/20">
-          {initial}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-[26px] font-bold leading-tight">{handle || "Your profile"}</h2>
-          {saved !== null && (
-            <p className="mt-1 flex items-center gap-1.5 text-[14px] font-semibold">
-              <StarIcon filled className="size-4 text-gold" />
-              {saved} {saved === 1 ? "favorite" : "favorites"}
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            track("logout_confirmed", { source: "profile" });
-            await signOut({ redirect: false }).catch(() => {});
-            setBusy(false);
-          }}
-          className="shrink-0 self-start rounded-full border border-band-ink/40 px-4 py-1.5 text-[14px] font-semibold hover:bg-band-ink/10 disabled:opacity-60"
-        >
-          {busy ? "Logging out…" : "Log out"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-/** Logged out: what the Profile is for, and a way to log in. */
+/** Logged out: one card saying what Favorites are for, and a way to log in. */
 function SignedOut() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 pb-12 pt-5">
@@ -126,8 +65,7 @@ function SignedOut() {
         <StarIcon filled={false} className="mx-auto size-10 text-gold-ink dark:text-gold" />
         <h2 className="mt-2 font-display text-2xl font-bold">Save your favorite dishes</h2>
         <p className="mx-auto mt-1.5 max-w-sm text-[15px] text-muted">
-          Log in with your Hamilton account to save the dishes you love and get a notification or email, at the time you pick,
-          the day one is on the menu.
+          Log in with your Hamilton account to save dishes and get an alert when they&apos;re on the menu.
         </p>
         <button
           type="button"
@@ -140,20 +78,6 @@ function SignedOut() {
           Log in
         </button>
       </section>
-      <ul className="mt-6 space-y-3 px-1 text-[15px]">
-        <li className="flex gap-3">
-          <StarIcon filled className="mt-0.5 size-5 shrink-0 text-gold-ink dark:text-gold" />
-          <span>
-            <strong>Favorites</strong> <span className="text-muted">follow you to any phone or computer you log in on.</span>
-          </span>
-        </li>
-        <li className="flex gap-3">
-          <Bell className="mt-0.5 size-5 shrink-0 text-accent" />
-          <span>
-            <strong>Notifications</strong> <span className="text-muted">by push or email, at the time you pick, tell you which favorites are on that day, where, and for which meal.</span>
-          </span>
-        </li>
-      </ul>
     </main>
   );
 }

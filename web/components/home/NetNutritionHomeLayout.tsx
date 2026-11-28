@@ -212,7 +212,7 @@ function usePinToVisualBottom(ref: React.RefObject<HTMLElement | null>) {
 
 /**
  * Where a jump puts a hall card's top: a little below the sticky header's bottom edge. Measured rather than a fixed
- * scroll margin, because the header grows when the Menu / Cafe / Profile tabs are shown and would otherwise cover the card's top.
+ * scroll margin, because the header grows when the Menu / Cafe / Favorites tabs are shown and would otherwise cover the card's top.
  */
 function jumpOffset() {
   const header = document.querySelector("header");

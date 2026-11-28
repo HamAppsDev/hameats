@@ -80,7 +80,7 @@ export function LoginSheet() {
             <span aria-hidden>🗑️</span>
             <span>
               <strong className="text-zinc-900 dark:text-zinc-100">You&apos;re in control.</strong> Remove a favorite or turn notifications off
-              anytime from your Profile, or email me to delete your account.
+              anytime from the Favorites tab, or email me to delete your account.
             </span>
           </li>
         </ul>

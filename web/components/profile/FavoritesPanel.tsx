@@ -1,9 +1,9 @@
 "use client";
 
 import { useFavorites } from "@/lib/favorites";
-import { FavoriteButton, StarIcon } from "@/components/FavoriteButton";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
-/** The Favorites on your Profile: one card per saved dish, with its name and the star to remove it. */
+/** The saved dishes on the Favorites tab: one card per dish, with its name and the star to remove it. */
 export function FavoritesPanel() {
   const { favorites, status } = useFavorites();
 
@@ -16,11 +16,9 @@ export function FavoritesPanel() {
 
   if (favorites.length === 0)
     return (
-      <section className="rounded-[10px] border border-rule bg-surface p-5 text-center">
-        <StarIcon filled={false} className="mx-auto size-9 text-gold-ink dark:text-gold" />
-        <h2 className="mt-2 font-display text-2xl font-bold">No favorites yet</h2>
-        <p className="mt-1.5 text-[15px] text-muted">Tap a dish on the Menu and choose Save to Favorites.</p>
-      </section>
+      <p className="rounded-[10px] border border-rule bg-surface p-5 text-center text-[15px] text-muted">
+        No favorites yet. Tap a dish on the Menu and choose Save to Favorites.
+      </p>
     );
 
   return (

@@ -12,7 +12,7 @@ export function StarIcon({ filled, className }: { filled: boolean; className?: s
 }
 
 /**
- * Star a dish to save it to your Profile. Logged out, tapping it asks you to log in first. `size="lg"` is the labeled
+ * Star a dish to save it to your Favorites. Logged out, tapping it asks you to log in first. `size="lg"` is the labeled
  * button on a food's page. Hidden when favorites aren't available (no database connected).
  */
 export function FavoriteButton({ dish, source, size = "sm" }: { dish: string; source: string; size?: "sm" | "lg" }) {

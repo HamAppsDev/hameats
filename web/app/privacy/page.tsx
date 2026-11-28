@@ -143,7 +143,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-6">
             <li>Block analytics by using a tracking blocker, or by clearing your browser data.</li>
             <li>Log out at any time, and remove any favorite.</li>
-            <li>Turn push or email notifications on or off, or change their time, on your Profile, under Notifications. Every alert email also has an unsubscribe link.</li>
+            <li>Turn push or email notifications on or off, or change their time, on the Favorites tab, under Alerts. Every alert email also has an unsubscribe link.</li>
             <li>Ask me for a copy of everything HamEats keeps about you.</li>
             <li>Ask me to delete your account and everything you&apos;ve saved.</li>
             <li>Ask me to delete any feedback you&apos;ve submitted.</li>

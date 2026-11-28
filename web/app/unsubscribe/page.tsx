@@ -25,9 +25,9 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">You&apos;re unsubscribed</h1>
             <p>HamEats won&apos;t email you about your favorites anymore. Push notifications on your phone, if you have them on, aren&apos;t changed.</p>
             <p>
-              Changed your mind? Turn emails back on in your{" "}
+              Changed your mind? Turn emails back on in the{" "}
               <Link href="/#notifications" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
-                Profile, under Notifications
+                Favorites tab, under Alerts
               </Link>
               .
             </p>
@@ -46,9 +46,9 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
               </button>
             </form>
             <p className="text-sm text-muted">
-              To change the time instead, go to your{" "}
+              To change the time instead, go to the{" "}
               <Link href="/#notifications" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
-                Profile, under Notifications
+                Favorites tab, under Alerts
               </Link>
               .
             </p>
@@ -57,9 +57,9 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
           <>
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">This link doesn&apos;t work</h1>
             <p>
-              Turn alert emails off in your{" "}
+              Turn alert emails off in the{" "}
               <Link href="/#notifications" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
-                Profile, under Notifications
+                Favorites tab, under Alerts
               </Link>
               .
             </p>

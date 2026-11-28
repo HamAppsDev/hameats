@@ -5,10 +5,10 @@ import { track } from "@/lib/analytics";
 export type Section = "menu" | "cafe" | "profile";
 
 /**
- * Which part of the app the address shows: #cafe or #profile (#notifications opens the Profile on its Notifications
- * switch, which is where tapping an alert goes). Older addresses still land somewhere sensible: #feed and #updates
+ * Which part of the app the address shows: #cafe or #profile, the Favorites tab (still "profile" inside the code and
+ * analytics). #notifications opens Favorites scrolled to its Alerts, which is where tapping an alert goes. Older addresses still land somewhere sensible: #feed and #updates
  * (the tab's old names) are the Cafe tab,
- * #favorites and #me are the Profile. Anything else, including no hash, is the Menu. The dining halls' own pages
+ * #favorites and #me are the Favorites tab. Anything else, including no hash, is the Menu. The dining halls' own pages
  * (#commons) are handled before this.
  */
 export function sectionFor(hash: string): { section: Section; notifications: boolean } {
@@ -29,10 +29,10 @@ export function goToSection(section: Section | "notifications") {
 const TABS: [Section, string][] = [
   ["menu", "Menu"],
   ["cafe", "Cafe"],
-  ["profile", "Profile"],
+  ["profile", "Favorites"],
 ];
 
-/** Menu / Cafe / Profile, in the blue header band under the title. */
+/** Menu / Cafe / Favorites, in the blue header band under the title. */
 export function SectionTabs({ active }: { active: Section }) {
   return (
     <div role="tablist" aria-label="Sections" className="mx-auto flex max-w-2xl">
