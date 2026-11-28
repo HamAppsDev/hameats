@@ -73,7 +73,8 @@ self.addEventListener("push", (event) => {
     badge: "/icons/icon-192.png?v=9",
     data: { url: data.url || "/" },
   };
-  if (data.tag) options.tag = data.tag;
+  // A meal's alert and its correction share a tag: the correction replaces the alert, and renotify makes it ring again.
+  if (data.tag) Object.assign(options, { tag: data.tag, renotify: true });
   event.waitUntil(self.registration.showNotification(data.title || "HamEats", options));
 });
 

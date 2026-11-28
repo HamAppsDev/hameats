@@ -29,9 +29,16 @@ export const unsubscribeUrl = (email: string) => `${SITE_URL}/unsubscribe?e=${en
 /** Where mail apps' one-click "Unsubscribe" posts to (RFC 8058). */
 const oneClickUrl = (email: string) => `${SITE_URL}/api/unsubscribe?e=${encodeURIComponent(email)}&t=${sign(email)}`;
 
+/** Cici holding a HamEats bowl, drawn as a postage stamp (public/email/cici-stamp.png, 176x203, shown at half size). */
+const STAMP_URL = `${SITE_URL}/email/cici-stamp.png`;
+
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** The email: the same title and dish lines as the push notification, a link to the Menu, and how to stop or change it. */
+/**
+ * The email: the same title and lines as the push notification, Cici as a stamp in the corner, a link to the Menu, and how
+ * to stop or change it. The stamp is a remote image (many mail apps block those until the reader allows them), so
+ * nothing in the email depends on it: it has a size, alt text, and the title reads fine without it.
+ */
 export function alertEmail(to: string, title: string, lines: string[]) {
   const menu = SITE_URL;
   const settings = `${SITE_URL}/#notifications`;
@@ -43,19 +50,20 @@ export function alertEmail(to: string, title: string, lines: string[]) {
     "",
     `See the full menu: ${menu}`,
     "",
-    `You get this because you turned on email alerts in HamEats. Change the time or turn them off: ${settings}`,
+    `You get this because you turned on email alerts in HamEats. Change the times or turn them off: ${settings}`,
     `Unsubscribe: ${unsub}`,
     "",
     `This is an automatic email, so replies aren't read. To tell us something, use the feedback form: ${FEEDBACK_FORM_URL}`,
   ].join("\n");
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#18181b">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:24px">
+<img src="${STAMP_URL}" width="88" height="101" alt="Cici, the HamApps cat, holding a bowl of HamEats" style="float:right;margin:-6px -4px 8px 12px;border:0;display:block">
 <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3">${escape(title)}</h1>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:16px;line-height:1.5">${lines.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>
 <a href="${menu}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;font-weight:600;padding:10px 16px;border-radius:8px">See the menu</a>
 </div>
 <p style="max-width:480px;margin:16px auto 0;font-size:12px;line-height:1.5;color:#71717a">You get this because you turned on email alerts in HamEats.
-<a href="${settings}" style="color:#71717a">Change the time or turn them off</a> · <a href="${unsub}" style="color:#71717a">Unsubscribe</a><br>
+<a href="${settings}" style="color:#71717a">Change the times or turn them off</a> · <a href="${unsub}" style="color:#71717a">Unsubscribe</a><br>
 This is an automatic email, so replies aren&#39;t read. To tell us something, use the <a href="${FEEDBACK_FORM_URL}" style="color:#71717a">feedback form</a>.</p>
 </body></html>`;
   return { subject: title, text, html };

@@ -2,6 +2,8 @@ import "server-only";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { localMode } from "@/lib/localMode";
+import { DEFAULT_ALERT_MINUTE, cleanAlertMinutes, validAlertMinute } from "@/lib/alertMeals";
+import type { Meal } from "@/lib/types";
 
 // Everything HamEats saves lives in one DynamoDB table, one item per person who has logged in:
 //
@@ -11,8 +13,14 @@ import { localMode } from "@/lib/localMode";
 //   push       while notify is on: the push address of each phone that allowed notifications. Without it a phone
 //              can't be reached. Turning notifications off erases it.
 //   emailAlerts whether the daily alert also goes to their Hamilton email (the partition key)
-//   alertMinute when the daily alert goes out: minutes after midnight on campus (Eastern), a multiple of 15. Unset = 8 AM.
-//   lastAlert  the campus date ("YYYY-MM-DD") the last alert was sent, so nobody gets two in a day
+//   alertMinutes when the alerts go out: 1-3 times, minutes after midnight on campus (Eastern), multiples of 15. Each
+//              covers one meal (lib/alertMeals.ts). Older items have a single alertMinute instead, read as the only time;
+//              alertMinute is still written (the first time) so an older version of the app reads them right.
+//   sent       today's alerts only, overwritten each day: { day, meals: { Lunch: { dishes, updated } } }. `dishes` are
+//              the favorites that alert named ("Poke Bowl|mcewen"), so a later run can tell if the menu changed, and
+//              `updated` says the one correction for that meal has gone out. sentRev counts writes to it, so two runs
+//              can't both claim the same send.
+//   lastAlert  from older versions: the date the last whole-day alert went out. If it's today, today counts as sent.
 //   createdAt  when they first logged in
 //
 // Settings: HAMEATS_DYNAMODB_TABLE, and HAMEATS_AWS_REGION (or AWS_REGION, which AWS sets on its own servers). Running on
@@ -27,16 +35,21 @@ export type User = {
   notify: boolean;
   push: PushAddress[];
   emailAlerts: boolean;
-  alertMinute: number;
+  alertMinutes: number[];
+  sent: SentToday | null;
+  sentRev: number;
   lastAlert: string;
   createdAt: string;
 };
 
-/** When the daily alert goes out unless the person picks another time: 8 AM on campus. */
-export const DEFAULT_ALERT_MINUTE = 8 * 60;
-/** Alert times are picked in steps of this many minutes (the scheduler runs this often). */
-export const ALERT_STEP = 15;
-export const validAlertMinute = (m: unknown): m is number => Number.isInteger(m) && (m as number) >= 0 && (m as number) < 24 * 60 && (m as number) % ALERT_STEP === 0;
+/** One meal's alert today: the favorites it named, as "dish|hall", and whether its one correction has gone out. */
+export type SentMeal = { dishes: string[]; updated: boolean };
+export type SentToday = { day: string; meals: Partial<Record<Meal, SentMeal>> };
+
+const readSent = (v: unknown): SentToday | null => {
+  const s = v as SentToday | undefined;
+  return s && typeof s.day === "string" && s.meals && typeof s.meals === "object" ? s : null;
+};
 
 /** Most favorites one person can keep. */
 export const MAX_FAVORITES = 300;
@@ -81,7 +94,10 @@ const toUser = (email: string, item: Record<string, unknown> | undefined): User 
   notify: item?.notify === true,
   push: Array.isArray(item?.push) ? (item.push as PushAddress[]) : [],
   emailAlerts: item?.emailAlerts === true,
-  alertMinute: validAlertMinute(item?.alertMinute) ? item.alertMinute : DEFAULT_ALERT_MINUTE,
+  alertMinutes:
+    cleanAlertMinutes(item?.alertMinutes) ?? [validAlertMinute(item?.alertMinute) ? (item.alertMinute as number) : DEFAULT_ALERT_MINUTE],
+  sent: readSent(item?.sent),
+  sentRev: typeof item?.sentRev === "number" ? item.sentRev : 0,
   lastAlert: typeof item?.lastAlert === "string" ? item.lastAlert : "",
   createdAt: typeof item?.createdAt === "string" ? item.createdAt : new Date().toISOString(),
 });
@@ -111,7 +127,10 @@ export async function getUser(email: string): Promise<User> {
  * Changes the person's record: reads it, applies `change`, and writes back only if nobody else changed it in between
  * (two phones tapping at once), trying again if they did. `change` returns the fields to save, or null to save nothing.
  */
-async function update(email: string, change: (u: User) => Partial<Omit<User, "email" | "createdAt" | "lastAlert">> | null): Promise<User> {
+async function update(
+  email: string,
+  change: (u: User) => Partial<Omit<User, "email" | "createdAt" | "lastAlert" | "sent" | "sentRev">> | null,
+): Promise<User> {
   if (localMode()) {
     const user = toUser(email, memory().get(email));
     const fields = change(user);
@@ -133,14 +152,15 @@ async function update(email: string, change: (u: User) => Partial<Omit<User, "em
           TableName: table(),
           Key: { email },
           UpdateExpression:
-            "SET favorites = :f, notify = :n, push = :p, emailAlerts = :e, alertMinute = :m, createdAt = if_not_exists(createdAt, :c), version = :v1",
+            "SET favorites = :f, notify = :n, push = :p, emailAlerts = :e, alertMinutes = :ms, alertMinute = :m, createdAt = if_not_exists(createdAt, :c), version = :v1",
           ConditionExpression: Item ? "version = :v0 OR attribute_not_exists(version)" : "attribute_not_exists(email)",
           ExpressionAttributeValues: {
             ":f": next.favorites,
             ":n": next.notify,
             ":p": next.push,
             ":e": next.emailAlerts,
-            ":m": next.alertMinute,
+            ":ms": next.alertMinutes,
+            ":m": next.alertMinutes[0],
             ":c": user.createdAt,
             ":v1": version + 1,
             ...(Item ? { ":v0": version } : {}),
@@ -198,10 +218,11 @@ export async function setEmailAlerts(email: string, on: boolean) {
   await update(email, (u) => (u.emailAlerts === on ? null : { emailAlerts: on }));
 }
 
-/** Sets when the daily alert goes out (minutes after midnight on campus). */
-export async function setAlertMinute(email: string, minute: number) {
-  if (!validAlertMinute(minute)) throw new Error("bad alert time");
-  await update(email, (u) => (u.alertMinute === minute ? null : { alertMinute: minute }));
+/** Sets when the alerts go out: 1-3 times (minutes after midnight on campus), cleaned by cleanAlertMinutes. */
+export async function setAlertMinutes(email: string, minutes: number[]) {
+  const times = cleanAlertMinutes(minutes);
+  if (!times) throw new Error("bad alert times");
+  await update(email, (u) => (u.alertMinutes.join() === times.join() ? null : { alertMinutes: times }));
 }
 
 /** A phone that no longer accepts notifications (its push service said 404 or 410). Off when it was their last one. */
@@ -214,22 +235,33 @@ export async function forgetPhone(email: string, endpoint: string) {
 }
 
 /**
- * Notes that today's alert went to this person. Only lastAlert is written, so it can't undo a change they make
- * at the same moment.
+ * Records today's alerts for this person (`next`, which replaces yesterday's), but only if nobody else recorded something
+ * since `user` was read (sentRev unchanged). Called just BEFORE an alert or correction is sent, so a run that's retried, or
+ * two runs at once, can't send it twice: the second one finds sentRev changed and gets false. Only sent and sentRev are
+ * written, so it can't undo a settings change made at the same moment.
  */
-export async function markAlerted(email: string, day: string) {
-  const item = localMode() ? memory().get(email) : undefined;
-  if (item) item.lastAlert = day;
-  if (localMode()) return;
-  await db().send(
-    new UpdateCommand({
-      TableName: table(),
-      Key: { email },
-      UpdateExpression: "SET lastAlert = :d",
-      ConditionExpression: "attribute_exists(email)",
-      ExpressionAttributeValues: { ":d": day },
-    }),
-  );
+export async function claimSent(user: User, next: SentToday): Promise<boolean> {
+  if (localMode()) {
+    const item = memory().get(user.email);
+    if (!item || (typeof item.sentRev === "number" ? item.sentRev : 0) !== user.sentRev) return false;
+    Object.assign(item, { sent: next, sentRev: user.sentRev + 1 });
+    return true;
+  }
+  try {
+    await db().send(
+      new UpdateCommand({
+        TableName: table(),
+        Key: { email: user.email },
+        UpdateExpression: "SET sent = :s, sentRev = :r1",
+        ConditionExpression: "attribute_exists(email) AND (sentRev = :r0 OR attribute_not_exists(sentRev))",
+        ExpressionAttributeValues: { ":s": next, ":r0": user.sentRev, ":r1": user.sentRev + 1 },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
 }
 
 /** Whether this person gets alerts at all: push with at least one phone, or email. */
@@ -237,7 +269,7 @@ export const wantsAlerts = (u: User) => (u.notify && u.push.length > 0) || u.ema
 
 /**
  * Everyone with push (and at least one phone) or email alerts on. The whole table is read (it's tiny: a few KB); past
- * a few thousand people, an index on alertMinute would be cheaper.
+ * a few thousand people, an index would be cheaper.
  */
 export async function usersToNotify(): Promise<User[]> {
   if (localMode()) return [...memory().entries()].map(([email, item]) => toUser(email, item)).filter(wantsAlerts);

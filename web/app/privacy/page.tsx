@@ -79,8 +79,9 @@ export default function PrivacyPage() {
           </p>
           <p>
             <strong className="text-zinc-900 dark:text-zinc-100">Notifications (only if you turn them on).</strong> HamEats
-            saves which ones are on (push, email or both), the time you picked, and the date the last one was sent, so you
-            never get two in a day. For push, it also saves the address your phone or browser gives for sending them, which
+            saves which ones are on (push, email or both), the times you picked, and, for today only, which of your favorites
+            each meal&apos;s alert named, so you never get the same alert twice and get one short update if that meal&apos;s
+            menu changes. It&apos;s replaced the next day. For push, it also saves the address your phone or browser gives for sending them, which
             is the only way a notification can reach your phone; turning push off erases that address. Email alerts go to
             your Hamilton email address, which HamEats already has from your login. The notifications and emails themselves
             aren&apos;t saved.
